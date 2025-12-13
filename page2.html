@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scor Karate Sincronizat — Pagina 2 Complet</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="navbar">
+    <div class="left">
+      <div class="hamburger" onclick="toggleMenu()">☰</div>
+      <div class="dropdown-menu" id="menu">
+        <label for="time-select">Timp:</label>
+        <select id="time-select">
+          <option value="60">1 minut</option>
+          <option value="90">1 minut 30 secunde</option>
+          <option value="120">2 minute</option>
+        </select>
+      </div>
+    </div>
+    <div class="center">
+      <div class="timer" id="timer">00:00</div>
+    </div>
+    <div class="right">
+      <div class="tooltip-container">
+        <span class="tooltip-icon">?</span>
+        <div class="tooltip-text">
+          <ul>7-13 ani 1 minut Shobu Ippon</ul>
+          <ul>14-18 ani 1 minut 30 de secunde Shobu Ippon</ul>
+          <ul>Grand Champion -> Shobu Ippon</ul>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="half red">
+      <div class="score" id="score-red">0</div>
+      <div class="buttons">
+        <button data-side="red" data-value="1">+1</button>
+        <button data-side="red" data-value="-1">-1</button>
+      </div>
+      <div class="penalties">
+        <div class="penalty-header">
+          <span>K&nbsp;</span><span>HK</span><span>&nbsp;H</span>
+        </div>
+        <div class="penalty-columns">
+          <div class="penalty-col">
+            <div class="circle" data-side="red" data-index="0"></div>
+            <div class="circle" data-side="red" data-index="1"></div>
+          </div>
+          <div class="penalty-col">
+            <div class="circle" data-side="red" data-index="2"></div>
+            <div class="circle" data-side="red" data-index="3"></div>
+          </div>
+          <div class="penalty-col">
+            <div class="circle" data-side="red" data-index="4"></div>
+            <div class="circle" data-side="red" data-index="5"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="middle-controls">
+      <button onclick="toggleTimer()" id="toggle-btn" class="control-btn">Start</button>
+      <div class="time-button-group">
+        <div class="time-label">TIMP</div>
+        <div class="time-actions">
+          <div class="time-btn-minus" onclick="adjustTime(-1)">−</div>
+          <div class="time-btn-plus" onclick="adjustTime(1)">+</div>
+        </div>
+      </div>
+      <button onclick="resetAll()" class="control-btn">Reset</button>
+      <img class="logo" src="logoVictoria.png"/>
+    </section>
+
+    <section class="half blue">
+      <div class="score" id="score-blue">0</div>
+      <div class="buttons">
+        <button data-side="blue" data-value="1">+1</button>
+        <button data-side="blue" data-value="-1">-1</button>
+      </div>
+      <div class="penalties">
+        <div class="penalty-header">
+          <span>K&nbsp;</span><span>HK</span><span>&nbsp;H</span>
+        </div>
+        <div class="penalty-columns">
+          <div class="penalty-col">
+            <div class="circle" data-side="blue" data-index="0"></div>
+            <div class="circle" data-side="blue" data-index="1"></div>
+          </div>
+          <div class="penalty-col">
+            <div class="circle" data-side="blue" data-index="2"></div>
+            <div class="circle" data-side="blue" data-index="3"></div>
+          </div>
+          <div class="penalty-col">
+            <div class="circle" data-side="blue" data-index="4"></div>
+            <div class="circle" data-side="blue" data-index="5"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const bc = new BroadcastChannel('karateSync');
+
+    let scores = { red: 0, blue: 0 };
+    let timerInterval;
+    let time = 0;
+    let running = false;
+
+    function updateScore(color, change, send = true) {
+      scores[color] += change;
+      if (scores[color] < 0) scores[color] = 0;
+      document.getElementById(`score-${color}`).textContent = scores[color];
+      if (send) bc.postMessage({ type: 'score', color, change });
+    }
+
+    function toggleCircle(elem, send = true) {
+      elem.classList.toggle("active");
+      if(send){
+        bc.postMessage({ 
+          type: 'circle', 
+          side: elem.dataset.side, 
+          index: elem.dataset.index 
+        });
+      }
+    }
+
+    function toggleMenu() {
+      const menu = document.getElementById("menu");
+      menu.style.display = menu.style.display === "flex" ? "none" : "flex";
+    }
+
+    function updateDisplay() {
+      const timerDisplay = document.getElementById("timer");
+      let minutes = Math.floor(time / 60);
+      let seconds = time % 60;
+      timerDisplay.textContent = `${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+      if (time <= 30) timerDisplay.classList.add("red");
+      else timerDisplay.classList.remove("red");
+    }
+
+    function toggleTimer(send = true) {
+      const btn = document.getElementById("toggle-btn");
+      if (!running) {
+        if (time === 0) time = parseInt(document.getElementById("time-select").value);
+        timerInterval = setInterval(() => {
+          if (time <= 0) {
+            clearInterval(timerInterval);
+            running = false;
+            btn.textContent = "Start";
+            return;
+          }
+          time--;
+          updateDisplay();
+        }, 1000);
+        running = true;
+        btn.textContent = "Stop";
+        if (send) bc.postMessage({ type: 'timerStart' });
+      } else {
+        clearInterval(timerInterval);
+        running = false;
+        btn.textContent = "Start";
+        if (send) bc.postMessage({ type: 'timerStop' });
+      }
+    }
+
+    function adjustTime(amount, send = true) {
+      time = Math.max(0, time + amount);
+      updateDisplay();
+      if (send) bc.postMessage({ type: 'adjustTime', amount });
+    }
+
+    function resetAll(send = true) {
+      clearInterval(timerInterval);
+      running = false;
+      time = parseInt(document.getElementById("time-select").value);
+      updateDisplay();
+      document.getElementById("toggle-btn").textContent = "Start";
+      scores.red = 0;
+      scores.blue = 0;
+      document.getElementById("score-red").textContent = "0";
+      document.getElementById("score-blue").textContent = "0";
+      document.querySelectorAll('.circle').forEach(c => c.classList.remove('active'));
+      if (send) bc.postMessage({ type: 'reset' });
+    }
+
+    // Sincronizare selector timp
+    document.getElementById("time-select").addEventListener("change", () => {
+      if (!running) {
+        time = parseInt(document.getElementById("time-select").value);
+        updateDisplay();
+        bc.postMessage({ type: 'changeTimeSelect', value: time });
+      }
+    });
+
+    bc.onmessage = e => {
+      const msg = e.data;
+      if (!msg) return;
+      switch(msg.type){
+        case 'score': updateScore(msg.color, msg.change, false); break;
+        case 'circle': {
+          const elem = document.querySelector(`.circle[data-side='${msg.side}'][data-index='${msg.index}']`);
+          if(elem) toggleCircle(elem, false);
+        } break;
+        case 'timerStart': if(!running) toggleTimer(false); break;
+        case 'timerStop': if(running) toggleTimer(false); break;
+        case 'adjustTime': adjustTime(msg.amount, false); break;
+        case 'reset': resetAll(false); break;
+        case 'changeTimeSelect':
+          if(!running){
+            time = msg.value;
+            document.getElementById("time-select").value = time;
+            updateDisplay();
+          }
+        break;
+      }
+    };
+
+    document.querySelectorAll('.buttons button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const color = btn.dataset.side;
+        const value = parseInt(btn.dataset.value);
+        updateScore(color, value);
+      });
+    });
+
+    document.querySelectorAll('.circle').forEach(c => c.addEventListener('click', () => toggleCircle(c)));
+  </script>
+</body>
+</html>
